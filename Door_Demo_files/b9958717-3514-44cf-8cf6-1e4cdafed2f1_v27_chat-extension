@@ -1,0 +1,49 @@
+/**
+ * LearnWise Chat Extension for D2L Brightspace
+ */
+
+(function () {
+    'use strict';
+    let assistantId = document.currentScript.dataset.assistantId;
+    let region = document.currentScript.dataset.region;
+    let allowInQuizzes = String(document.currentScript.dataset.allowInQuizzes).trim().toLowerCase() === "true";
+    
+    const url = window.location?.href || ""; // full URL as a string
+    if (!allowInQuizzes && url.includes("/d2l/lms/quizzing")) {
+        return
+    }
+
+    if (window.learnWiseChatInitialized) {
+        return
+    }
+
+    if (!assistantId) {
+        console.log('[LearnWise] ❌ Assistant Id not found');
+        return
+    }
+
+    // Configure LearnWise
+    window.learnWiseSetup = {
+        host: 'https://aiden.learnwise.ai',
+        chatSrc: 'https://chat.learnwise.ai',
+        assistantId: assistantId,
+        region: region,
+        allowInQuizzes: allowInQuizzes,
+    };
+
+    // Load chat launcher
+    const script = document.createElement('script');
+    script.src = 'https://aiden.learnwise.ai/chat_launcher.js';
+    script.async = true;
+
+    script.onload = () => {
+        window.learnWiseChatInitialized = true;
+    };
+
+    script.onerror = () => {
+        console.error('[LearnWise] ❌ Failed to load chat launcher');
+    };
+
+    document.head.appendChild(script);
+})();
+

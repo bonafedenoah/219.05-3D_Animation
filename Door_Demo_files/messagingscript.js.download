@@ -1,0 +1,36 @@
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initializeSalesforceMessaging);
+} else {
+    initializeSalesforceMessaging();
+}
+
+function initializeSalesforceMessaging(retryCount = 0) {
+    const MAX_RETRIES = 50; // 5 seconds (50 * 100ms)
+    
+    try {
+        if (typeof embeddedservice_bootstrap === 'undefined') {
+            if (retryCount >= MAX_RETRIES) {
+                console.error('Embedded Messaging library failed to load after 5 seconds');
+                return;
+            }
+            console.log('Waiting for Embedded Messaging library to load...');
+            setTimeout(() => initializeSalesforceMessaging(retryCount + 1), 100);
+            return;
+        }
+
+        embeddedservice_bootstrap.settings.language = window.top.Language || 'en-US';
+        embeddedservice_bootstrap.settings.hideChatButtonOnLoad  = true;
+
+        embeddedservice_bootstrap.init(
+            window.top.SalesforceOrgId,
+            window.top.SalesforceMessagingDeployment,
+            window.top.SalesforceMessagingUrl,
+            {
+                scrt2URL: window.top.SalesforceScrt2Url
+            }
+        );
+    } catch (err) {
+        console.error('Error loading Embedded Messaging: ', err);
+    }
+}
+
