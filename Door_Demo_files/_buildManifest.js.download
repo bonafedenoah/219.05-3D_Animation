@@ -1,0 +1,41 @@
+self.__BUILD_MANIFEST = {
+  "/": [
+    "static/chunks/1_uz57lmzz-5v.js"
+  ],
+  "/_error": [
+    "static/chunks/2fhrow_ivfhm9.js"
+  ],
+  "/maintenance": [
+    "static/chunks/05g80p8qwswsp.js"
+  ],
+  "/misconfigured": [
+    "static/chunks/0n9a30iub46g3.js"
+  ],
+  "/oauth-complete": [
+    "static/chunks/3v2rxwtgm35ng.js"
+  ],
+  "/tawk-bridge": [
+    "static/chunks/0tsd_xljt4c0q.js"
+  ],
+  "__rewrites": {
+    "afterFiles": [
+      {
+        "source": "/:nextInternalLocale(en|es|fr|fr\\-CA|hu|ja|pt\\-BR|nl|de|ga|cy|lv|fi|he|ar)/configure-teams"
+      },
+      {
+        "source": "/:nextInternalLocale(en|es|fr|fr\\-CA|hu|ja|pt\\-BR|nl|de|ga|cy|lv|fi|he|ar)/configure-teams/:path*"
+      }
+    ],
+    "beforeFiles": [],
+    "fallback": []
+  },
+  "sortedPages": [
+    "/",
+    "/_app",
+    "/_error",
+    "/maintenance",
+    "/misconfigured",
+    "/oauth-complete",
+    "/tawk-bridge"
+  ]
+};self.__BUILD_MANIFEST_CB && self.__BUILD_MANIFEST_CB()

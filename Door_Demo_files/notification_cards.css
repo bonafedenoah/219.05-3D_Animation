@@ -1,0 +1,623 @@
+/* Notification launcher badge and host-page toast cards.
+
+   Split out of resize_drag_chat_style.css because two different hosts render these elements from
+   two different codebases: the injector (src/notifications.ts) and the SharePoint SPFx web part
+   (frontends/ms-apps/sharepoint/.../methods/notifications.ts), which loads the rest of its chrome
+   from the legacy drag_chat_style.css. Both load this file on top of their own stylesheet, so the
+   card styling has exactly one definition. Nothing here depends on either base stylesheet beyond
+   #lw-floating-button being a positioning context for the badge, which both provide.
+
+   Served unhashed from the injector's Vercel deployment with a 15 minute TTL, so an edit reaches
+   every embed — SharePoint included — without a .sppkg rebuild. */
+
+@media print {
+    .lw-notification-cards,
+    .lw-notification-announcer {
+        display: none !important;
+    }
+}
+
+/* Screen-reader announcement for an arriving card (WCAG 4.1.3). A card is inserted as
+   role="region", which browsers do not announce on insertion, and the launcher's aria-label is only
+   read while the button has focus — so without this the card can appear and auto-dismiss unheard.
+   Visually hidden rather than display:none, which would take it out of the accessibility tree too. */
+.lw-notification-announcer {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border: 0;
+}
+
+/* Notification badge on floating button */
+.lw-notification-badge {
+    position: absolute;
+    top: -4px;
+    /* Logical so the unread-count badge stays on the button's inline-end corner in both LTR and RTL. */
+    inset-inline-end: -4px;
+    /* Sized in em off this rule's own font-size, so the circle grows with the numeral instead of
+       clipping it when the reader enlarges text. At the 12px floor these resolve to the original
+       20px / 6px / 10px. */
+    min-width: 1.667em;
+    height: 1.667em;
+    padding: 0 0.5em;
+    border-radius: 0.833em;
+    /* WCAG 1.4.3 — white count text needs >= 4.5:1;
+       #d32f2f (~5:1 on white) keeps the alert-red while meeting AA. */
+    background: #d32f2f !important;
+    color: #fff !important;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+    font-size: clamp(12px, 0.75rem, 15px) !important;
+    font-weight: 600 !important;
+    font-style: normal !important;
+    line-height: 1.5 !important;
+    letter-spacing: normal !important;
+    text-transform: none !important;
+    text-decoration: none !important;
+    border: 2px solid #fff;
+    text-align: center;
+    pointer-events: none;
+    box-sizing: border-box;
+}
+
+/* Notification card container */
+.lw-notification-cards {
+    display: flex;
+    align-items: stretch;
+    gap: 8px;
+    width: 400px;
+    /* WCAG 1.4.10 — the container is position:fixed and anchored to the launcher, so without a cap
+       400px runs off a narrow viewport with nothing to scroll. 16px is VIEWPORT_PADDING_PX on both
+       sides, the same inset updateCardPosition() already keeps. */
+    max-width: calc(100vw - 16px);
+    pointer-events: auto;
+}
+
+.lw-notification-cards > .lw-notification-card {
+    width: 100%;
+    box-sizing: border-box;
+}
+
+/* Individual notification card */
+.lw-notification-card {
+    position: relative;
+    background: #fff;
+    border-radius: 12px;
+    box-shadow:
+        0 2px 2px -1px rgba(10, 13, 18, 0.04),
+        0 4px 6px -2px rgba(10, 13, 18, 0.03),
+        0 12px 16px -4px rgba(10, 13, 18, 0.08);
+    padding: 16px;
+    cursor: pointer;
+    transition: opacity 0.3s ease, transform 0.3s ease;
+    animation: lw-notification-slide-in-from-below 0.3s ease;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    border: 1px solid #d5d7da;
+}
+
+/* Cards render ABOVE the button (placement top-*) → slide up from below into view. */
+.lw-notification-cards[data-corner="top-start"] .lw-notification-card,
+.lw-notification-cards[data-corner="top-end"] .lw-notification-card {
+    animation: lw-notification-slide-in-from-below 0.3s ease;
+}
+
+/* Cards render BELOW the button (placement bottom-*) → slide down from above into view. */
+.lw-notification-cards[data-corner="bottom-start"] .lw-notification-card,
+.lw-notification-cards[data-corner="bottom-end"] .lw-notification-card {
+    animation: lw-notification-slide-in-from-above 0.3s ease;
+}
+
+.lw-notification-card:hover {
+    box-shadow:
+        0 2px 2px -1px rgba(10, 13, 18, 0.06),
+        0 4px 6px -2px rgba(10, 13, 18, 0.05),
+        0 12px 16px -4px rgba(10, 13, 18, 0.12);
+}
+
+/* WCAG 2.4.7 — Focus Visible */
+
+.lw-notification-card:focus-visible {
+    outline: 2px solid #1849a9;
+    outline-offset: 2px;
+}
+
+.lw-notification-card-exit {
+    opacity: 0;
+    transform: translateX(20px);
+}
+
+/* Exit slides toward the nearest viewport edge horizontally. */
+.lw-notification-cards[data-corner$="-start"] .lw-notification-card-exit {
+    transform: translateX(-20px);
+}
+.lw-notification-cards[data-corner$="-end"] .lw-notification-card-exit {
+    transform: translateX(20px);
+}
+
+/* Close button (absolute top-right) */
+.lw-notification-close {
+    all: unset;
+    position: absolute;
+    top: 7px;
+    inset-inline-end: 7px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    cursor: pointer;
+    color: #a4a7ae;
+    flex-shrink: 0;
+    z-index: 1;
+    box-sizing: border-box;
+}
+
+.lw-notification-close:hover {
+    color: #181d27;
+    background: rgba(0, 0, 0, 0.04);
+}
+
+/* WCAG 2.4.7 — Focus Visible: :focus-visible shows ring on keyboard only, not mouse */
+
+.lw-notification-close:focus-visible {
+    outline: 2px solid #1849a9;
+    outline-offset: 2px;
+}
+
+.lw-notification-close svg {
+    width: 20px;
+    height: 20px;
+}
+
+/* Content row: icon + text */
+.lw-notification-content {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+}
+
+/* Icon circle */
+.lw-notification-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.lw-notification-icon--reply {
+    background: #d3eaff;
+    color: #3b82f6;
+}
+
+.lw-notification-icon--announcement {
+    background: #f3f4f6;
+    color: #6b7280;
+}
+
+/* Text column */
+.lw-notification-text {
+    flex: 1;
+    min-width: 0;
+    padding-inline-end: 32px;
+}
+
+/* Defensive typography overrides: title is a <span> and body is markdown
+   HTML (p, headings, strong, em, a, ...) injected via innerHTML — both sit
+   in the host page's DOM and are exposed to host stylesheets like
+   `body strong`, `body p`, `body * { text-transform: uppercase !important }`,
+   `body a[target="_blank"]::after`. Host rules often outrank our class
+   selectors. The !important markers below lock the typography we control to
+   the values declared here. Same precedent as the
+   `.lw-notification-btn-primary` block further down — do not remove the
+   !important markers. */
+.lw-notification-title {
+    display: block;
+    /* Rendered as a <button> (the keyboard-focusable "open" control); reset native button chrome
+       so it stays visually identical to the previous heading text. */
+    appearance: none;
+    -webkit-appearance: none;
+    background: none;
+    border: none;
+    padding: 0;
+    width: 100%;
+    text-align: start;
+    cursor: pointer;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+    font-size: clamp(14px, 0.875rem, 18px) !important;
+    font-weight: 700 !important;
+    font-style: normal !important;
+    color: #181d27 !important;
+    line-height: 1.5 !important;
+    letter-spacing: normal !important;
+    text-transform: none !important;
+    text-decoration: none !important;
+    margin-bottom: 4px;
+}
+
+.lw-notification-title:focus-visible {
+    outline: 2px solid #1849a9;
+    outline-offset: 2px;
+    border-radius: 4px;
+}
+
+.lw-notification-body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+    font-size: clamp(14px, 0.875rem, 18px) !important;
+    font-weight: 400 !important;
+    font-style: normal !important;
+    color: #181d27 !important;
+    line-height: 1.5 !important;
+    letter-spacing: normal !important;
+    text-transform: none !important;
+    text-decoration: none !important;
+    max-height: 80px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    word-break: break-word;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(10, 13, 18, 0.05) transparent;
+    transition: scrollbar-color 0.2s ease;
+}
+
+.lw-notification-body > *:first-child {
+    margin-top: 0;
+}
+
+.lw-notification-body > *:last-child {
+    margin-bottom: 0;
+}
+
+.lw-notification-body p {
+    margin: 0 0 6px;
+    font-family: inherit !important;
+    font-size: clamp(14px, 0.875rem, 18px) !important;
+    font-weight: 400 !important;
+    font-style: normal !important;
+    line-height: 1.5 !important;
+    color: inherit !important;
+    letter-spacing: normal !important;
+    text-transform: none !important;
+    text-decoration: none !important;
+}
+
+.lw-notification-body h1,
+.lw-notification-body h2,
+.lw-notification-body h3,
+.lw-notification-body h4 {
+    font-family: inherit !important;
+    font-size: clamp(14px, 0.875rem, 18px) !important;
+    font-weight: 700 !important;
+    font-style: normal !important;
+    line-height: 1.5 !important;
+    margin: 8px 0 4px;
+    color: #181d27 !important;
+    letter-spacing: normal !important;
+    text-transform: none !important;
+    text-decoration: none !important;
+}
+
+.lw-notification-body ul,
+.lw-notification-body ol {
+    margin: 4px 0 6px;
+    padding-inline-start: 18px;
+    font-family: inherit !important;
+    font-size: clamp(14px, 0.875rem, 18px) !important;
+    color: inherit !important;
+    text-transform: none !important;
+}
+
+.lw-notification-body li {
+    margin: 0 0 2px;
+    font-family: inherit !important;
+    font-size: clamp(14px, 0.875rem, 18px) !important;
+    font-weight: 400 !important;
+    font-style: normal !important;
+    line-height: 1.5 !important;
+    color: inherit !important;
+    letter-spacing: normal !important;
+    text-transform: none !important;
+    text-decoration: none !important;
+}
+
+.lw-notification-body a {
+    font-family: inherit !important;
+    font-size: inherit !important;
+    font-weight: inherit !important;
+    color: #1849a9 !important;
+    text-decoration: underline !important;
+    text-transform: none !important;
+    letter-spacing: normal !important;
+    word-break: break-all;
+}
+
+/* Suppress host-injected pseudo-glyphs on body links (e.g.
+   `body a[target="_blank"]::after { content: "↗" }`). Class is doubled to
+   bump specificity (0,2,3) above the common host pattern (0,1,3) — when
+   both sides use !important, specificity decides. */
+.lw-notification-body.lw-notification-body a::before,
+.lw-notification-body.lw-notification-body a::after {
+    content: none !important;
+    display: none !important;
+}
+
+.lw-notification-body code {
+    padding: 1px 4px;
+    background: #f3f4f6 !important;
+    border-radius: 4px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace !important;
+    font-size: clamp(12px, 0.75rem, 15px) !important;
+    font-weight: 400 !important;
+    font-style: normal !important;
+    color: inherit !important;
+    letter-spacing: normal !important;
+    text-transform: none !important;
+    text-decoration: none !important;
+}
+
+.lw-notification-body blockquote {
+    margin: 6px 0;
+    padding: 4px 10px;
+    border-inline-start: 3px solid #717680;
+    font-family: inherit !important;
+    font-size: clamp(14px, 0.875rem, 18px) !important;
+    font-weight: 400 !important;
+    font-style: normal !important;
+    line-height: 1.5 !important;
+    color: #535862 !important;
+    letter-spacing: normal !important;
+    text-transform: none !important;
+    text-decoration: none !important;
+}
+
+.lw-notification-body hr {
+    margin: 8px 0;
+    border: 0;
+    border-top: 1px solid #a4a7ae;
+}
+
+.lw-notification-body strong,
+.lw-notification-body b {
+    font-family: inherit !important;
+    font-weight: 700 !important;
+    font-style: inherit !important;
+    color: inherit !important;
+    letter-spacing: normal !important;
+    text-transform: none !important;
+    text-decoration: none !important;
+    background: transparent !important;
+}
+
+.lw-notification-body em,
+.lw-notification-body i {
+    font-family: inherit !important;
+    font-weight: inherit !important;
+    font-style: italic !important;
+    color: inherit !important;
+    letter-spacing: normal !important;
+    text-transform: none !important;
+    text-decoration: none !important;
+    background: transparent !important;
+}
+
+.lw-notification-card:hover .lw-notification-body {
+    scrollbar-color: rgba(10, 13, 18, 0.3) transparent;
+}
+
+.lw-notification-body::-webkit-scrollbar {
+    width: 6px;
+}
+
+.lw-notification-body::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.lw-notification-body::-webkit-scrollbar-thumb {
+    background: rgba(10, 13, 18, 0.2);
+    border-radius: 3px;
+    transition: background 0.2s ease;
+}
+
+.lw-notification-card:hover .lw-notification-body::-webkit-scrollbar-thumb {
+    background: rgba(10, 13, 18, 1);
+}
+
+/* Scroll-hint chevron: pulses at the bottom of the body when content
+   overflows, until the user scrolls or hovers the card. */
+.lw-notification-body-wrap {
+    position: relative !important;
+}
+
+.lw-notification-scroll-hint {
+    position: absolute !important;
+    inset-inline-end: 4px !important;
+    bottom: 2px !important;
+    display: none !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 18px !important;
+    height: 18px !important;
+    border-radius: 50% !important;
+    background: #06114c !important;
+    color: #fff !important;
+    pointer-events: none !important;
+    box-shadow: 0 1px 3px rgba(10, 13, 18, 0.25) !important;
+    z-index: 2 !important;
+}
+
+.lw-notification-scroll-hint svg {
+    display: block !important;
+    width: 12px !important;
+    height: 12px !important;
+}
+
+.lw-notification-body-wrap--scrollable .lw-notification-scroll-hint {
+    display: flex !important;
+    animation: lw-notification-hint-pulse 1.2s ease-in-out infinite !important;
+}
+
+@keyframes lw-notification-hint-pulse {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(2px); }
+}
+
+.lw-notification-card:hover .lw-notification-scroll-hint {
+    display: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .lw-notification-body-wrap--scrollable .lw-notification-scroll-hint {
+        animation: none !important;
+    }
+}
+
+/* Actions row */
+.lw-notification-actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 12px;
+}
+
+.lw-notification-btn-primary {
+    all: unset;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8px 14px;
+    border-radius: 8px;
+    background: #06114c;
+    color: #fff;
+    font-size: clamp(14px, 0.875rem, 18px);
+    font-weight: 700;
+    line-height: 1.5;
+    text-align: center;
+    cursor: pointer;
+    font-family: inherit;
+    box-sizing: border-box;
+    transition: background 0.15s ease;
+    box-shadow:
+        0 1px 2px 0 rgba(16, 24, 40, 0.05),
+        inset 0 -2px 0 0 rgba(10, 13, 18, 0.05),
+        inset 0 0 0 1px rgba(10, 13, 18, 0.18);
+}
+
+.lw-notification-btn-primary:hover {
+    background: #0c27a3;
+}
+
+/* Defensive overrides: primary button renders as <button> or <a> (when
+   action_type === 'link'). Host pages often declare aggressive
+   `body button` / `body a` rules with !important that out-rank a single
+   class selector. Class is doubled below to bump specificity above patterns
+   like `body a[target="_blank"]` (0,1,3) and `body button *` (0,1,2) —
+   when both sides use !important, specificity decides. */
+.lw-notification-btn-primary.lw-notification-btn-primary,
+a.lw-notification-btn-primary.lw-notification-btn-primary:link,
+a.lw-notification-btn-primary.lw-notification-btn-primary:visited,
+a.lw-notification-btn-primary.lw-notification-btn-primary:hover,
+a.lw-notification-btn-primary.lw-notification-btn-primary:focus,
+a.lw-notification-btn-primary.lw-notification-btn-primary:active {
+    color: #fff !important;
+    background: #06114c !important;
+    font-family: inherit !important;
+    font-size: clamp(14px, 0.875rem, 18px) !important;
+    font-weight: 700 !important;
+    font-style: normal !important;
+    line-height: 1.5 !important;
+    letter-spacing: normal !important;
+    text-transform: none !important;
+    text-decoration: none !important;
+}
+
+.lw-notification-btn-primary.lw-notification-btn-primary:hover,
+a.lw-notification-btn-primary.lw-notification-btn-primary:hover {
+    background: #0c27a3 !important;
+}
+
+/* Suppress host-injected pseudo-glyphs (e.g.
+   `body a[target="_blank"]::after { content: "↗" }`). Class doubled for
+   specificity. */
+.lw-notification-btn-primary.lw-notification-btn-primary::before,
+.lw-notification-btn-primary.lw-notification-btn-primary::after {
+    content: none !important;
+    display: none !important;
+}
+
+/* WCAG 2.4.7 — Focus Visible: ring sits against white card bg; #1849a9 on white = 7.52:1 ✓ */
+
+.lw-notification-btn-primary:focus-visible {
+    outline: 2px solid #1849a9;
+    outline-offset: 2px;
+}
+
+/* Class doubled for specificity — host `body button { ... !important }`
+   would otherwise beat a single class selector. */
+.lw-notification-btn-reply.lw-notification-btn-reply {
+    all: unset;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8px 14px;
+    border-radius: 8px;
+    background: #e7f3ff !important;
+    border: 1px solid #82b8ff !important;
+    color: #06114c !important;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+    font-size: clamp(14px, 0.875rem, 18px) !important;
+    font-weight: 700 !important;
+    font-style: normal !important;
+    line-height: 1.5 !important;
+    letter-spacing: normal !important;
+    text-align: center !important;
+    text-transform: none !important;
+    text-decoration: none !important;
+    cursor: pointer;
+    box-sizing: border-box;
+    transition: background 0.15s ease;
+}
+
+.lw-notification-btn-reply.lw-notification-btn-reply:hover {
+    background: #d3eaff !important;
+}
+
+.lw-notification-btn-reply.lw-notification-btn-reply::before,
+.lw-notification-btn-reply.lw-notification-btn-reply::after {
+    content: none !important;
+    display: none !important;
+}
+
+/* WCAG 2.4.7 — Focus Visible: :focus-visible shows ring on keyboard only, not mouse */
+
+.lw-notification-btn-reply:focus-visible {
+    outline: 2px solid #1849a9;
+    outline-offset: 2px;
+}
+
+@keyframes lw-notification-slide-in-from-below {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes lw-notification-slide-in-from-above {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
